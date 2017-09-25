@@ -1,15 +1,44 @@
-Languages
-=========
+# Languages
 
-Multiple language support allows for users of non-English locales to natively interact with the displayed player. Video.js will compile multiple language files (see below) and instantiate with a global dictionary of language key/value support. Video.js player instances can be created with per-player language support that amends/overrides these default values. Player instances can also hard-set default languages to values other than English as of version 4.7.
+Video.js includes localization support to present text in a language other than the default English where appropriate.
 
-Creating the Language File
---------------------------
-Video.js uses key/value object dictionaries in JSON form.
+For an up-to-date list of the languages Video.js supports, see the [languages folder (`lang`)][lang-supported].
+Some translations may be less complete than others - see the [translations needed doc][translations-needed] for a table of strings that are missing from the translations available.  Contributions are welcome to update those that are incomplete.
 
-An English lang file is at [/lang/en.json](https://github.com/videojs/video.js/tree/master/lang/en.json) which should be used as a template for new files. This will be kept up to date with strings in the core player that need localizations.
+## Table of Contents
 
-A sample dictionary for Spanish `['es']` would look as follows:
+* [Using Video.js Languages](#using-videojs-languages)
+* [Contributing to Video.js Translations](#contributing-to-videojs-translations)
+  * [JSON Format](#json-format)
+  * [File Naming](#file-naming)
+  * [Updating an Existing Translation](#updating-an-existing-translation)
+  * [Writing a New Translation](#writing-a-new-translation)
+* [Advanced Language Usage](#advanced-language-usage)
+  * [Adding Languages via the API](#adding-languages-via-the-api)
+  * [Per-Player Languages](#per-player-languages)
+  * [Setting Default Player Language](#setting-default-player-language)
+  * [Determining Player Language](#determining-player-language)
+    * [Internal Language Selection](#internal-language-selection)
+* [References](#references)
+
+## Using Video.js Languages
+
+Video.js ships with multiple translations (in `dist/lang/`) in JavaScript files.
+Add the lang script for each language you need to support.
+Each of these files can be included in a web page to provide support for that language in _all_ Video.js players:
+
+```html
+<script src="//example.com/path/to/video.min.js"></script>
+<script src="//example.com/path/to/lang/es.js"></script>
+```
+
+## Contributing to Video.js Translations
+
+We welcome new translations and improvements to existing ones! Please see the [contributing document](../../CONTRIBUTING.md) to get started contributing to Video.js and continue reading for specifics on how to contribute to translations of Video.js.
+
+### JSON Format
+
+Video.js uses a JSON object to describe a language, where the keys are English and the values are the target language. For example, a Spanish translation might look like this:
 
 ```JSON
 {
@@ -18,150 +47,112 @@ A sample dictionary for Spanish `['es']` would look as follows:
   "Current Time": "Tiempo reproducido",
   "Duration Time": "Duración total",
   "Remaining Time": "Tiempo restante",
-  "Stream Type": "Tipo de secuencia",
-  "LIVE": "DIRECTO",
-  "Loaded": "Cargado",
-  "Progress": "Progreso",
-  "Fullscreen": "Pantalla completa",
-  "Non-Fullscreen": "Pantalla no completa",
-  "Mute": "Silenciar",
-  "Unmute": "No silenciado",
-  "Playback Rate": "Velocidad de reproducción",
-  "Subtitles": "Subtítulos",
-  "subtitles off": "Subtítulos desactivados",
-  "Captions": "Subtítulos especiales",
-  "captions off": "Subtítulos especiales desactivados",
-  "Chapters": "Capítulos",
-  "Close Modal Dialog": "Cerca de diálogo modal",
-  "You aborted the video playback": "Ha interrumpido la reproducción del vídeo.",
-  "A network error caused the video download to fail part-way.": "Un error de red ha interrumpido la descarga del vídeo.",
-  "The video could not be loaded, either because the server or network failed or because the format is not supported.": "No se ha podido cargar el vídeo debido a un fallo de red o del servidor o porque el formato es incompatible.",
-  "The video playback was aborted due to a corruption problem or because the video used features your browser did not support.": "La reproducción de vídeo se ha interrumpido por un problema de corrupción de datos o porque el vídeo precisa funciones que su navegador no ofrece.",
-  "No compatible source was found for this video.": "No se ha encontrado ninguna fuente compatible con este vídeo."
+  ...
 }
 ```
 
-Notes:
+### File Naming
 
-- The file name should always be in the format `XX.json`, where `XX` is the language code. This should be a two letter code (for options see the bottom of this document) except for cases where a more specific code with sub-code is appropriate, e.g. `zh-CN.lang`.
-- For automatic inclusion at build time, add your language file to the `/lang` directory (see 'Adding Languages to Video.js below').
+Translations are found in the `lang/` directory.
 
-Adding Languages to Video.js
-----------------------------
-Additional language support can be added to Video.js in multiple ways.
+Each file's name should be the [standard language code][lang-codes] that is most appropriate, with a `.json` extension. For example, "es.json" for Spanish or "zh-CN.json" for simplified Chinese.
 
-1. Create language scripts out of your JSON objects by using our custom grunt task `vjslanguages`. This task is automatically run as part of the default grunt task in Video.JS, but can be configured to match your `src`/`dist` directories if different. Once these scripts are created, just add them to your DOM like any other script.
+### Updating an Existing Translation
 
-NOTE: These need to be added after the core Video.js script.
+If there is a [missing translation](/docs/translations-needed.md), mistake, or room for improvement in an existing translation, don't hesitate to open a pull request!
 
+1. Edit the relevant JSON file and make the necessary changes.
+1. Verify the language compiles by running `grunt dist`.
+1. Verify the translation appears properly in the player UI.
+1. Run `grunt check-translations` to update the [missing translation document](/docs/translations-needed.md).
+1. Commit and open a pull request on GitHub.
 
-2. Add your JSON objects via the videojs.addLanguage API. Preferably in the HEAD element of your DOM or otherwise prior to player instantiation.
+### Writing a New Translation
 
-```html
-<head>
-<script>
-  videojs.options.flash.swf = '../node_modules/videojs-swf/dist/video-js.swf';
-  videojs.addLanguage('es', {
-    "Play": "Reproducción",
-    "Pause": "Pausa",
-    "Current Time": "Tiempo reproducido",
-    "Duration Time": "Duración total",
-    "Remaining Time": "Tiempo restante",
-    "Stream Type": "Tipo de secuencia",
-    "LIVE": "DIRECTO",
-    "Loaded": "Cargado",
-    "Progress": "Progreso",
-    "Fullscreen": "Pantalla completa",
-    "Non-Fullscreen": "Pantalla no completa",
-    "Mute": "Silenciar",
-    "Unmute": "No silenciado",
-    "Playback Rate": "Velocidad de reproducción",
-    "Subtitles": "Subtítulos",
-    "subtitles off": "Subtítulos desactivados",
-    "Captions": "Subtítulos especiales",
-    "captions off": "Subtítulos especiales desactivados",
-    "Chapters": "Capítulos",
-    "Close Modal Dialog": "Cerca de diálogo modal",
-    "You aborted the video playback": "Ha interrumpido la reproducción del vídeo.",
-    "A network error caused the video download to fail part-way.": "Un error de red ha interrumpido la descarga del vídeo.",
-    "The video could not be loaded, either because the server or network failed or because the format is not supported.": "No se ha podido cargar el vídeo debido a un fallo de red o del servidor o porque el formato es incompatible.",
-    "The video playback was aborted due to a corruption problem or because the video used features your browser did not support.": "La reproducción de vídeo se ha interrumpido por un problema de corrupción de datos o porque el vídeo precisa funciones que su navegador no ofrece.",
-    "No compatible source was found for this video.": "No se ha encontrado ninguna fuente compatible con este vídeo."
+The process for writing an entirely new translation is virtually identical to the process for [updating an existing translation](#updating-an-existing-translation) except that the new translation JSON file needs to be created.
+
+The template for new language files is the English file ([lang/en.json][lang-en]). This file is always up-to-date with strings that need translations.
+
+The first step to writing a new translation is to copy the English file:
+
+```sh
+cp lang/en.json lang/${NEW_LANG_CODE}.json
+```
+
+Otherwise, the process is the same as [updating an existing translation](#updating-an-existing-translation).
+
+### Adding Languages via the API
+
+In addition to the stand-alone scripts provided by Video.js, the API supports manual definition of new languages via the `addLanguage` method. It takes two arguments: the [standard language code][lang-codes] and a [language definition object](#json-format).
+
+```js
+videojs.addLanguage('es', {
+  Play: 'Reproducción',
+  Pause: 'Pausa',
+  'Current Time': 'Tiempo reproducido',
+  'Duration Time': 'Duración total',
+  'Remaining Time': 'Tiempo restante',
+  ...
 });
-</script>
-</head>
 ```
 
-3. During a Video.js player instantiation. Adding the languages to the configuration object provided in the `data-setup` attribute.
+`addLanguage()` will overwrite existing translations if the object includes strings previously translated. However text that has already been localised will not be updated after generation.
 
-```html
-<video id="example_video_1" class="video-js vjs-default-skin"
-  controls preload="auto" width="640" height="264"
-  data-setup='{"languages":{"es":{"Play":"Juego"}}}'>
- <source src="http://video-js.zencoder.com/oceans-clip.mp4" type='video/mp4' />
- <source src="http://video-js.zencoder.com/oceans-clip.webm" type='video/webm' />
- <source src="http://video-js.zencoder.com/oceans-clip.ogv" type='video/ogg' />
+### Per-Player Translations
 
- <track kind="captions" src="http://example.com/path/to/captions.vtt" srclang="en" label="English" default>
+In addition to providing languages to Video.js itself, individual `Player` instances can be provided custom language support via [the `languages` option](/docs/guides/options.md#languages):
 
-</video>
+```js
+// Provide a custom definition of Spanish to this player.
+videojs('my-player', {
+  languages: {
+    es: {
+      Play: 'Reproducir'
+    }
+  }
+});
 ```
 
-Notes:
-- This will add your language key/values to the Video.js player instances individually. If these values already exist in the global dictionary via the process above, those will be overridden for the player instance in question.
+### Setting Player Language
 
-Updating default translations
------------------------------
+The language used by a player instance may be set via [the `language` option](/docs/guides/options.md#language):
 
-A list of the current translations and any strings that need translation are at [docs/translations-needed.md](../translations-needed.md). After updating the language files in /lang/ running `grunt check-languages` will update that list.
-
-Setting Default Language in a Video.js Player
----------------------------------------------
-During a Video.js player instantiation you can force it to localize to a specific language by including the locale value into the configuration object via the `data-setup` attribute. Valid options listed at the bottom of the page for reference.
-
-```html
-<video id="example_video_1" class="video-js vjs-default-skin"
-  controls preload="auto" width="640" height="264"
-  data-setup='{"language":"es"}'>
- <source src="http://video-js.zencoder.com/oceans-clip.mp4" type='video/mp4' />
- <source src="http://video-js.zencoder.com/oceans-clip.webm" type='video/webm' />
- <source src="http://video-js.zencoder.com/oceans-clip.ogv" type='video/ogg' />
-
- <track kind="captions" src="http://example.com/path/to/captions.vtt" srclang="en" label="English" default>
-
-</video>
+```js
+// Set the language to Spanish for this player.
+videojs('my-player', {
+  language: 'es'
+});
 ```
 
-Determining Player Language
----------------------------
+The `language` method of the player _can_ be used to set the language after instantiation with `language('es')`. However, this is generally not useful as it does not update text that is already in place.
+
+### Determining Player Language
 
 The player language is set to one of the following in descending priority:
 
-* The language specified in setup options as above
-* The language specified by the closet element with a `lang` attribute. This could be the player itself or a parent element. Usually the document language is specified on the `html` tag.
-* Browser language preference (the first language if more than one is configured)
-* 'en'
+* The language [specified in options](#setting-default-player-language)
+* The language specified by a `lang` attribute on the player element.
+* The language specified by the closest parent element with a `lang` attribute, up to and including the `<html>` element.
+* The browser language preference; the first language if more than one is configured
+* English
 
-The player language can be change after instantiation with `language('fr')`. However localizable text will not be modified by doing this, for best results set the language beforehand.
+#### Internal Language Selection
 
-Language selection
-------------------
+* Language codes are considered case-insensitively (e.g. `en-US` == `en-us`).
+* If there is no match for a language code with a subcode (e.g. `en-us`), a match for the primary code (e.g. `en`) is used if available.
 
-* Language codes are considered case-insensitively (`en-US` == `en-us`).
-* If there is no match for a language code with a subcode (`en-us`), a match for the primary code (`en`) is used if available.
+## References
 
-Localization in Plugins
------------------------
+For information on translation/localization in plugins, see [the plugins guide](/docs/guides/plugins.md).
 
-When you're developing a plugin, you can also introduce new localized strings. Simply wrap the string with the player's `localize` function:
+Standard languages codes [are defined by the IANA][lang-codes].
 
-```js
-var details = '<div class="vjs-errors-details">' + player.localize('Technical details') + '</div>';
-```
+For all existing/supported languages, please see the [languages folder (`lang/`)][lang-supported] folder located in the project root.
 
-Language Codes
---------------
-A list of languages codes can be found [here](http://www.iana.org/assignments/language-subtag-registry/language-subtag-registry)
+[lang-en]: /lang/en.json
 
-For supported language translations, please see the [Languages Folder (/lang)](https://github.com/videojs/video.js/tree/master/lang) folder located in the project root.
+[lang-supported]: /lang
 
+[lang-codes]: http://www.iana.org/assignments/language-subtag-registry/language-subtag-registry
+
+[translations-needed]: https://github.com/videojs/video.js/blob/master/docs/translations-needed.md

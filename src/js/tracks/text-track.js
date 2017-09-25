@@ -13,15 +13,20 @@ import merge from '../utils/merge-options';
 import * as browser from '../utils/browser.js';
 
 /**
- * takes a webvtt file contents and parses it into cues
+ * Takes a webvtt file contents and parses it into cues
  *
- * @param {String} srcContent webVTT file contents
- * @param {Track} track track to addcues to
+ * @param {string} srcContent
+ *        webVTT file contents
+ *
+ * @param {TextTrack} track
+ *        TextTrack to add cues to. Cues come from the srcContent.
+ *
+ * @private
  */
 const parseCues = function(srcContent, track) {
   const parser = new window.WebVTT.Parser(window,
-                                        window.vttjs,
-                                        window.WebVTT.StringDecoder());
+                                          window.vttjs,
+                                          window.WebVTT.StringDecoder());
   const errors = [];
 
   parser.oncue = function(cue) {
@@ -54,10 +59,15 @@ const parseCues = function(srcContent, track) {
 };
 
 /**
- * load a track from a  specifed url
+ * Load a `TextTrack` from a specifed url.
  *
- * @param {String} src url to load track from
- * @param {Track} track track to addcues to
+ * @param {string} src
+ *        Url to load track from.
+ *
+ * @param {TextTrack} track
+ *        Track to add cues to. Comes from the content at the end of `url`.
+ *
+ * @private
  */
 const loadTrack = function(src, track) {
   const opts = {
@@ -97,33 +107,47 @@ const loadTrack = function(src, track) {
 };
 
 /**
- * A single text track as defined in:
- * @link https://html.spec.whatwg.org/multipage/embedded-content.html#texttrack
+ * A representation of a single `TextTrack`.
  *
- * interface TextTrack : EventTarget {
- *   readonly attribute TextTrackKind kind;
- *   readonly attribute DOMString label;
- *   readonly attribute DOMString language;
- *
- *   readonly attribute DOMString id;
- *   readonly attribute DOMString inBandMetadataTrackDispatchType;
- *
- *   attribute TextTrackMode mode;
- *
- *   readonly attribute TextTrackCueList? cues;
- *   readonly attribute TextTrackCueList? activeCues;
- *
- *   void addCue(TextTrackCue cue);
- *   void removeCue(TextTrackCue cue);
- *
- *   attribute EventHandler oncuechange;
- * };
- *
- * @param {Object=} options Object of option names and values
+ * @see [Spec]{@link https://html.spec.whatwg.org/multipage/embedded-content.html#texttrack}
  * @extends Track
- * @class TextTrack
  */
 class TextTrack extends Track {
+
+  /**
+   * Create an instance of this class.
+   *
+   * @param {Object} options={}
+   *        Object of option names and values
+   *
+   * @param {Tech} options.tech
+   *        A reference to the tech that owns this TextTrack.
+   *
+   * @param {TextTrack~Kind} [options.kind='subtitles']
+   *        A valid text track kind.
+   *
+   * @param {TextTrack~Mode} [options.mode='disabled']
+   *        A valid text track mode.
+   *
+   * @param {string} [options.id='vjs_track_' + Guid.newGUID()]
+   *        A unique id for this TextTrack.
+   *
+   * @param {string} [options.label='']
+   *        The menu label for this track.
+   *
+   * @param {string} [options.language='']
+   *        A valid two character language code.
+   *
+   * @param {string} [options.srclang='']
+   *        A valid two character language code. An alternative, but deprioritized
+   *        vesion of `options.language`
+   *
+   * @param {string} [options.src]
+   *        A url to TextTrack cues.
+   *
+   * @param {boolean} [options.default]
+   *        If this track should default to on or off.
+   */
   constructor(options = {}) {
     if (!options.tech) {
       throw new Error('A tech was not provided.');
@@ -174,9 +198,20 @@ class TextTrack extends Track {
     });
 
     if (mode !== 'disabled') {
-      tt.tech_.on('timeupdate', timeupdateHandler);
+      tt.tech_.ready(() => {
+        tt.tech_.on('timeupdate', timeupdateHandler);
+      }, true);
     }
 
+    /**
+     * @memberof TextTrack
+     * @member {boolean} default
+     *         If this track was set to be on or off by default. Cannot be changed after
+     *         creation.
+     * @instance
+     *
+     * @readonly
+     */
     Object.defineProperty(tt, 'default', {
       get() {
         return default_;
@@ -184,6 +219,15 @@ class TextTrack extends Track {
       set() {}
     });
 
+    /**
+     * @memberof TextTrack
+     * @member {string} mode
+     *         Set the mode of this TextTrack to a valid {@link TextTrack~Mode}. Will
+     *         not be set if setting to an invalid mode.
+     * @instance
+     *
+     * @fires TextTrack#modechange
+     */
     Object.defineProperty(tt, 'mode', {
       get() {
         return mode;
@@ -194,12 +238,31 @@ class TextTrack extends Track {
         }
         mode = newMode;
         if (mode === 'showing') {
-          this.tech_.on('timeupdate', timeupdateHandler);
+
+          this.tech_.ready(() => {
+            this.tech_.on('timeupdate', timeupdateHandler);
+          }, true);
         }
+        /**
+         * An event that fires when mode changes on this track. This allows
+         * the TextTrackList that holds this track to act accordingly.
+         *
+         * > Note: This is not part of the spec!
+         *
+         * @event TextTrack#modechange
+         * @type {EventTarget~Event}
+         */
         this.trigger('modechange');
+
       }
     });
 
+    /**
+     * @memberof TextTrack
+     * @member {TextTrackCueList} cues
+     *         The text track cue list for this TextTrack.
+     * @instance
+     */
     Object.defineProperty(tt, 'cues', {
       get() {
         if (!this.loaded_) {
@@ -211,6 +274,12 @@ class TextTrack extends Track {
       set() {}
     });
 
+    /**
+     * @memberof TextTrack
+     * @member {TextTrackCueList} activeCues
+     *         The list text track cues that are currently active for this TextTrack.
+     * @instance
+     */
     Object.defineProperty(tt, 'activeCues', {
       get() {
         if (!this.loaded_) {
@@ -268,19 +337,33 @@ class TextTrack extends Track {
   }
 
   /**
-   * add a cue to the internal list of cues
+   * Add a cue to the internal list of cues.
    *
-   * @param {Object} cue the cue to add to our internal list
-   * @method addCue
+   * @param {TextTrack~Cue} cue
+   *        The cue to add to our internal list
    */
-  addCue(cue) {
+  addCue(originalCue) {
+    let cue = originalCue;
+
+    if (window.vttjs && !(originalCue instanceof window.vttjs.VTTCue)) {
+      cue = new window.vttjs.VTTCue(originalCue.startTime, originalCue.endTime, originalCue.text);
+
+      for (const prop in originalCue) {
+        if (!(prop in cue)) {
+          cue[prop] = originalCue[prop];
+        }
+      }
+
+      // make sure that `id` is copied over
+      cue.id = originalCue.id;
+      cue.originalCue_ = originalCue;
+    }
+
     const tracks = this.tech_.textTracks();
 
-    if (tracks) {
-      for (let i = 0; i < tracks.length; i++) {
-        if (tracks[i] !== this) {
-          tracks[i].removeCue(cue);
-        }
+    for (let i = 0; i < tracks.length; i++) {
+      if (tracks[i] !== this) {
+        tracks[i].removeCue(cue);
       }
     }
 
@@ -289,25 +372,22 @@ class TextTrack extends Track {
   }
 
   /**
-   * remvoe a cue from our internal list
+   * Remove a cue from our internal list
    *
-   * @param {Object} removeCue the cue to remove from our internal list
-   * @method removeCue
+   * @param {TextTrack~Cue} removeCue
+   *        The cue to remove from our internal list
    */
   removeCue(removeCue) {
-    let removed = false;
+    let i = this.cues_.length;
 
-    for (let i = 0, l = this.cues_.length; i < l; i++) {
+    while (i--) {
       const cue = this.cues_[i];
 
-      if (cue === removeCue) {
+      if (cue === removeCue || (cue.originalCue_ && cue.originalCue_ === removeCue)) {
         this.cues_.splice(i, 1);
-        removed = true;
+        this.cues.setCues_(this.cues_);
+        break;
       }
-    }
-
-    if (removed) {
-      this.cues.setCues_(this.cues_);
     }
   }
 }

@@ -1,32 +1,39 @@
 /**
  * @file remaining-time-display.js
  */
+import document from 'global/document';
 import Component from '../../component.js';
 import * as Dom from '../../utils/dom.js';
+import {bind, throttle} from '../../utils/fn.js';
 import formatTime from '../../utils/format-time.js';
 
 /**
  * Displays the time left in the video
  *
- * @param {Player|Object} player
- * @param {Object=} options
  * @extends Component
- * @class RemainingTimeDisplay
  */
 class RemainingTimeDisplay extends Component {
 
+  /**
+   * Creates an instance of this class.
+   *
+   * @param {Player} player
+   *        The `Player` that this class should be attached to.
+   *
+   * @param {Object} [options]
+   *        The key/value store of player options.
+   */
   constructor(player, options) {
     super(player, options);
-
-    this.on(player, 'timeupdate', this.updateContent);
-    this.on(player, 'durationchange', this.updateContent);
+    this.throttledUpdateContent = throttle(bind(this, this.updateContent), 25);
+    this.on(player, ['timeupdate', 'durationchange'], this.throttledUpdateContent);
   }
 
   /**
-   * Create the component's DOM element
+   * Create the `Component`'s DOM element
    *
    * @return {Element}
-   * @method createEl
+   *         The element that was created.
    */
   createEl() {
     const el = super.createEl('div', {
@@ -34,39 +41,53 @@ class RemainingTimeDisplay extends Component {
     });
 
     this.contentEl_ = Dom.createEl('div', {
-      className: 'vjs-remaining-time-display',
-      // label the remaining time for screen reader users
-      innerHTML: `<span class="vjs-control-text">${this.localize('Remaining Time')}</span> -0:00`
+      className: 'vjs-remaining-time-display'
     }, {
       // tell screen readers not to automatically read the time as it changes
       'aria-live': 'off'
-    });
+    }, Dom.createEl('span', {
+      className: 'vjs-control-text',
+      textContent: this.localize('Remaining Time')
+    }));
 
+    this.updateTextNode_();
     el.appendChild(this.contentEl_);
     return el;
   }
 
   /**
-   * Update remaining time display
+   * Updates the "remaining time" text node with new content using the
+   * contents of the `formattedTime_` property.
    *
-   * @method updateContent
+   * @private
    */
-  updateContent() {
+  updateTextNode_() {
+    if (this.textNode_) {
+      this.contentEl_.removeChild(this.textNode_);
+    }
+    this.textNode_ = document.createTextNode(` -${this.formattedTime_ || '0:00'}`);
+    this.contentEl_.appendChild(this.textNode_);
+  }
+
+  /**
+   * Update remaining time display.
+   *
+   * @param {EventTarget~Event} [event]
+   *        The `timeupdate` or `durationchange` event that caused this to run.
+   *
+   * @listens Player#timeupdate
+   * @listens Player#durationchange
+   */
+  updateContent(event) {
     if (this.player_.duration()) {
-      const localizedText = this.localize('Remaining Time');
       const formattedTime = formatTime(this.player_.remainingTime());
 
       if (formattedTime !== this.formattedTime_) {
         this.formattedTime_ = formattedTime;
-        this.contentEl_.innerHTML = `<span class="vjs-control-text">${localizedText}</span> -${formattedTime}`;
+        this.requestAnimationFrame(this.updateTextNode_);
       }
     }
-
-    // Allows for smooth scrubbing, when player can't keep up.
-    // var time = (this.player_.scrubbing()) ? this.player_.getCache().currentTime : this.player_.currentTime();
-    // this.contentEl_.innerHTML = vjs.formatTime(time, this.player_.duration());
   }
-
 }
 
 Component.registerComponent('RemainingTimeDisplay', RemainingTimeDisplay);

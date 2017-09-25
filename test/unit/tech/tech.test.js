@@ -1,7 +1,6 @@
 /* eslint-env qunit */
 import Tech from '../../../src/js/tech/tech.js';
 import Html5 from '../../../src/js/tech/html5.js';
-import Flash from '../../../src/js/tech/flash.js';
 import Button from '../../../src/js/button.js';
 import { createTimeRange } from '../../../src/js/utils/time-ranges.js';
 import extendFn from '../../../src/js/extend.js';
@@ -13,6 +12,7 @@ import AudioTrackList from '../../../src/js/tracks/audio-track-list';
 import VideoTrackList from '../../../src/js/tracks/video-track-list';
 import TextTrackList from '../../../src/js/tracks/text-track-list';
 import sinon from 'sinon';
+import log from '../../../src/js/utils/log.js';
 
 QUnit.module('Media Tech', {
   beforeEach(assert) {
@@ -25,6 +25,23 @@ QUnit.module('Media Tech', {
     this.clock.restore();
     Tech.prototype.featuresProgessEvents = this.featuresProgessEvents;
   }
+});
+
+QUnit.test('Tech.registerTech and Tech.getTech', function(assert) {
+  const MyTech = extendFn(Tech);
+  const oldTechs = Tech.techs_;
+  const oldDefaultTechOrder = Tech.defaultTechOrder_;
+
+  Tech.registerTech('MyTech', MyTech);
+
+  assert.ok(Tech.techs_.MyTech, 'Tech is stored in the global list');
+  assert.notEqual(Tech.defaultTechOrder_.indexOf('MyTech'), -1, 'Tech is stored in the defaultTechOrder array');
+  assert.strictEqual(Tech.getTech('myTech'), MyTech, 'can get a tech using `camelCase` name');
+  assert.strictEqual(Tech.getTech('MyTech'), MyTech, 'can get a tech using `titleCase` name');
+
+  // reset techs and defaultTechOrder
+  Tech.techs_ = oldTechs;
+  Tech.defaultTechOrder_ = oldDefaultTechOrder;
 });
 
 QUnit.test('should synthesize timeupdate events by default', function(assert) {
@@ -135,18 +152,18 @@ QUnit.test('dispose() should clear all tracks that are passed when its created',
 QUnit.test('dispose() should clear all tracks that are added after creation', function(assert) {
   const tech = new Tech();
 
-  tech.addRemoteTextTrack({});
-  tech.addRemoteTextTrack({});
+  tech.addRemoteTextTrack({}, true);
+  tech.addRemoteTextTrack({}, true);
 
-  tech.audioTracks().addTrack_(new AudioTrack());
-  tech.audioTracks().addTrack_(new AudioTrack());
+  tech.audioTracks().addTrack(new AudioTrack());
+  tech.audioTracks().addTrack(new AudioTrack());
 
-  tech.videoTracks().addTrack_(new VideoTrack());
-  tech.videoTracks().addTrack_(new VideoTrack());
+  tech.videoTracks().addTrack(new VideoTrack());
+  tech.videoTracks().addTrack(new VideoTrack());
 
   assert.equal(tech.audioTracks().length, 2, 'should have two audio tracks at the start');
   assert.equal(tech.videoTracks().length, 2, 'should have two video tracks at the start');
-  assert.equal(tech.textTracks().length, 2, 'should have two video tracks at the start');
+  assert.equal(tech.textTracks().length, 2, 'should have two text tracks at the start');
   assert.equal(tech.remoteTextTrackEls().length,
               2,
               'should have two remote text tracks els');
@@ -165,6 +182,82 @@ QUnit.test('dispose() should clear all tracks that are added after creation', fu
               'should have zero remote text tracks els');
   assert.equal(tech.remoteTextTracks().length, 0, 'should have zero remote text tracks');
   assert.equal(tech.textTracks().length, 0, 'should have zero video tracks after dispose');
+});
+
+QUnit.test('switching sources should clear all remote tracks that are added with manualCleanup = false', function(assert) {
+
+  const oldLogWarn = log.warn;
+  let warning;
+
+  log.warn = function(wrning) {
+    warning = wrning;
+  };
+
+  // Define a new tech class
+  const MyTech = extendFn(Tech);
+
+  // Create source handler
+  const handler = {
+    canPlayType: () => 'probably',
+    canHandleSource: () => 'probably',
+    handleSource: () => {
+      return {
+        dispose: () => {}
+      };
+    }
+  };
+
+  // Extend Tech with source handlers
+  Tech.withSourceHandlers(MyTech);
+
+  MyTech.registerSourceHandler(handler);
+
+  const tech = new MyTech();
+
+  tech.triggerReady();
+
+  // set the initial source
+  tech.setSource({src: 'foo.mp4', type: 'mp4'});
+
+  // default value for manualCleanup is true
+  tech.addRemoteTextTrack({});
+  this.clock.tick(1);
+
+  assert.equal(warning,
+               'Calling addRemoteTextTrack without explicitly setting the "manualCleanup" parameter to `true` is deprecated and default to `false` in future version of video.js',
+               'we log a warning when `addRemoteTextTrack` is called without a manualCleanup argument');
+
+  // should be automatically cleaned up when source changes
+  tech.addRemoteTextTrack({}, false);
+  this.clock.tick(1);
+
+  assert.equal(tech.textTracks().length, 2, 'should have two text tracks at the start');
+  assert.equal(tech.remoteTextTrackEls().length,
+              2,
+              'should have two remote text tracks els');
+  assert.equal(tech.remoteTextTracks().length, 2, 'should have two remote text tracks');
+  assert.equal(tech.autoRemoteTextTracks_.length,
+               1,
+               'should have one auto-cleanup remote text track');
+
+  // change source to force cleanup of auto remote text tracks
+  tech.setSource({src: 'bar.mp4', type: 'mp4'});
+  this.clock.tick(1);
+
+  assert.equal(tech.textTracks().length,
+               1,
+               'should have one text track after source change');
+  assert.equal(tech.remoteTextTrackEls().length,
+              1,
+              'should have one remote remote text track els after source change');
+  assert.equal(tech.remoteTextTracks().length,
+               1,
+               'should have one remote text track after source change');
+  assert.equal(tech.autoRemoteTextTracks_.length,
+               0,
+               'should have zero auto-cleanup remote text tracks');
+
+  log.warn = oldLogWarn;
 });
 
 QUnit.test('should add the source handler interface to a tech', function(assert) {
@@ -279,14 +372,14 @@ QUnit.test('should add the source handler interface to a tech', function(assert)
                     '',
                     'the Tech returned an empty string for the invalid source');
 
-  tech.addRemoteTextTrack({});
-  tech.addRemoteTextTrack({});
+  tech.addRemoteTextTrack({}, true);
+  tech.addRemoteTextTrack({}, true);
 
-  tech.audioTracks().addTrack_(new AudioTrack());
-  tech.audioTracks().addTrack_(new AudioTrack());
+  tech.audioTracks().addTrack(new AudioTrack());
+  tech.audioTracks().addTrack(new AudioTrack());
 
-  tech.videoTracks().addTrack_(new VideoTrack());
-  tech.videoTracks().addTrack_(new VideoTrack());
+  tech.videoTracks().addTrack(new VideoTrack());
+  tech.videoTracks().addTrack(new VideoTrack());
 
   assert.equal(tech.audioTracks().length, 2, 'should have two audio tracks at the start');
   assert.equal(tech.videoTracks().length, 2, 'should have two video tracks at the start');
@@ -426,56 +519,11 @@ QUnit.test('Tech.isTech returns correct answers for techs and components', funct
   assert.ok(isTech(Tech), 'Tech is a Tech');
   assert.ok(isTech(Html5), 'Html5 is a Tech');
   assert.ok(isTech(new Html5({}, {})), 'An html5 instance is a Tech');
-  assert.ok(isTech(Flash), 'Flash is a Tech');
   assert.ok(!isTech(5), 'A number is not a Tech');
   assert.ok(!isTech('this is a tech'), 'A string is not a Tech');
   assert.ok(!isTech(Button), 'A Button is not a Tech');
   assert.ok(!isTech(new Button({}, {})), 'A Button instance is not a Tech');
   assert.ok(!isTech(isTech), 'A function is not a Tech');
-});
-
-QUnit.test('Tech#setSource clears currentSource_ after repeated loadstart', function(assert) {
-  let disposed = false;
-  const MyTech = extendFn(Tech);
-
-  Tech.withSourceHandlers(MyTech);
-  const tech = new MyTech();
-
-  const sourceHandler = {
-    canPlayType(type) {
-      return true;
-    },
-    canHandleSource(source, options) {
-      return true;
-    },
-    handleSource(source, tech_, options) {
-      return {
-        dispose() {
-          disposed = true;
-        }
-      };
-    }
-  };
-
-  // Test registering source handlers
-  MyTech.registerSourceHandler(sourceHandler);
-
-  // First loadstart
-  tech.setSource('test');
-  tech.currentSource_ = 'test';
-  tech.trigger('loadstart');
-  assert.equal(tech.currentSource_, 'test', 'Current source is test');
-
-  // Second loadstart
-  tech.trigger('loadstart');
-  assert.equal(tech.currentSource_, null, 'Current source is null');
-  assert.equal(disposed, true, 'disposed is true');
-
-  // Third loadstart
-  tech.currentSource_ = 'test';
-  tech.trigger('loadstart');
-  assert.equal(tech.currentSource_, null, 'Current source is still null');
-
 });
 
 QUnit.test('setSource after tech dispose should dispose source handler once', function(assert) {
@@ -559,3 +607,8 @@ QUnit.test('setSource after previous setSource should dispose source handler onc
 
 });
 
+QUnit.test('returns an empty object for getVideoPlaybackQuality', function(assert) {
+  const tech = new Tech();
+
+  assert.deepEqual(tech.getVideoPlaybackQuality(), {}, 'returns an empty object');
+});

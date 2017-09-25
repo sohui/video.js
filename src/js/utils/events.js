@@ -1,13 +1,13 @@
 /**
- * @file events.js
- *
- * Event System (John Resig - Secrets of a JS Ninja http://jsninja.com/)
+ * @file events.js. An Event System (John Resig - Secrets of a JS Ninja http://jsninja.com/)
  * (Original book version wasn't completely usable, so fixed some things and made Closure Compiler compatible)
  * This should work very similarly to jQuery's events, however it's based off the book version which isn't as
  * robust as jquery's, so there's probably some differences.
+ *
+ * @module events
  */
 
-import * as Dom from './dom.js';
+import * as DomData from './dom-data';
 import * as Guid from './guid.js';
 import log from './log.js';
 import window from 'global/window';
@@ -15,14 +15,15 @@ import document from 'global/document';
 
 /**
  * Clean up the listener cache and dispatchers
-*
- * @param  {Element|Object} elem Element to clean up
- * @param  {String} type Type of event to clean up
- * @private
- * @method _cleanUpEvents
+ *
+ * @param {Element|Object} elem
+ *        Element to clean up
+ *
+ * @param {string} type
+ *        Type of event to clean up
  */
 function _cleanUpEvents(elem, type) {
-  const data = Dom.getElData(elem);
+  const data = DomData.getData(elem);
 
   // Remove the events of a particular type if there are none left
   if (data.handlers[type].length === 0) {
@@ -47,19 +48,24 @@ function _cleanUpEvents(elem, type) {
 
   // Finally remove the element data if there is no data left
   if (Object.getOwnPropertyNames(data).length === 0) {
-    Dom.removeElData(elem);
+    DomData.removeData(elem);
   }
 }
 
 /**
  * Loops through an array of event types and calls the requested method for each type.
  *
- * @param  {Function} fn   The event method we want to use.
- * @param  {Element|Object} elem Element or object to bind listeners to
- * @param  {String}   type Type of event to bind to.
- * @param  {Function} callback   Event listener.
- * @private
- * @function _handleMultipleEvents
+ * @param {Function} fn
+ *        The event method we want to use.
+ *
+ * @param {Element|Object} elem
+ *        Element or object to bind listeners to
+ *
+ * @param {string} type
+ *        Type of event to bind to.
+ *
+ * @param {EventTarget~EventListener} callback
+ *        Event listener.
  */
 function _handleMultipleEvents(fn, elem, types, callback) {
   types.forEach(function(type) {
@@ -71,10 +77,11 @@ function _handleMultipleEvents(fn, elem, types, callback) {
 /**
  * Fix a native event to have standard property values
  *
- * @param  {Object} event Event object to fix
+ * @param {Object} event
+ *        Event object to fix.
+ *
  * @return {Object}
- * @private
- * @method fixEvent
+ *         Fixed event object.
  */
 export function fixEvent(event) {
 
@@ -196,22 +203,53 @@ export function fixEvent(event) {
 }
 
 /**
+ * Whether passive event listeners are supported
+ */
+let _supportsPassive = false;
+
+(function() {
+  try {
+    const opts = Object.defineProperty({}, 'passive', {
+      get() {
+        _supportsPassive = true;
+      }
+    });
+
+    window.addEventListener('test', null, opts);
+  } catch (e) {
+    // disregard
+  }
+})();
+
+/**
+ * Touch events Chrome expects to be passive
+ */
+const passiveEvents = [
+  'touchstart',
+  'touchmove'
+];
+
+/**
  * Add an event listener to element
  * It stores the handler function in a separate cache object
  * and adds a generic handler to the element's event,
  * along with a unique id (guid) to the element.
  *
- * @param  {Element|Object}   elem Element or object to bind listeners to
- * @param  {String|Array}   type Type of event to bind to.
- * @param  {Function} fn   Event listener.
- * @method on
+ * @param {Element|Object} elem
+ *        Element or object to bind listeners to
+ *
+ * @param {string|string[]} type
+ *        Type of event to bind to.
+ *
+ * @param {EventTarget~EventListener} fn
+ *        Event listener.
  */
 export function on(elem, type, fn) {
   if (Array.isArray(type)) {
     return _handleMultipleEvents(on, elem, type, fn);
   }
 
-  const data = Dom.getElData(elem);
+  const data = DomData.getData(elem);
 
   // We need a place to store all our handler data
   if (!data.handlers) {
@@ -262,7 +300,13 @@ export function on(elem, type, fn) {
 
   if (data.handlers[type].length === 1) {
     if (elem.addEventListener) {
-      elem.addEventListener(type, data.dispatcher, false);
+      let options = false;
+
+      if (_supportsPassive &&
+        passiveEvents.indexOf(type) > -1) {
+        options = {passive: true};
+      }
+      elem.addEventListener(type, data.dispatcher, options);
     } else if (elem.attachEvent) {
       elem.attachEvent('on' + type, data.dispatcher);
     }
@@ -272,18 +316,23 @@ export function on(elem, type, fn) {
 /**
  * Removes event listeners from an element
  *
- * @param  {Element|Object}   elem Object to remove listeners from
- * @param  {String|Array=}   type Type of listener to remove. Don't include to remove all events from element.
- * @param  {Function} fn   Specific listener to remove. Don't include to remove listeners for an event type.
- * @method off
+ * @param {Element|Object} elem
+ *        Object to remove listeners from.
+ *
+ * @param {string|string[]} [type]
+ *        Type of listener to remove. Don't include to remove all events from element.
+ *
+ * @param {EventTarget~EventListener} [fn]
+ *        Specific listener to remove. Don't include to remove listeners for an event
+ *        type.
  */
 export function off(elem, type, fn) {
   // Don't want to add a cache object through getElData if not needed
-  if (!Dom.hasElData(elem)) {
+  if (!DomData.hasData(elem)) {
     return;
   }
 
-  const data = Dom.getElData(elem);
+  const data = DomData.getData(elem);
 
   // If no events exist, nothing to unbind
   if (!data.handlers) {
@@ -336,17 +385,24 @@ export function off(elem, type, fn) {
 /**
  * Trigger an event for an element
  *
- * @param  {Element|Object}      elem  Element to trigger an event on
- * @param  {Event|Object|String} event A string (the type) or an event object with a type attribute
- * @param  {Object} [hash] data hash to pass along with the event
- * @return {Boolean=} Returned only if default was prevented
- * @method trigger
+ * @param {Element|Object} elem
+ *        Element to trigger an event on
+ *
+ * @param {EventTarget~Event|string} event
+ *        A string (the type) or an event object with a type attribute
+ *
+ * @param {Object} [hash]
+ *        data hash to pass along with the event
+ *
+ * @return {boolean|undefined}
+ *         - Returns the opposite of `defaultPrevented` if default was prevented
+ *         - Otherwise returns undefined
  */
 export function trigger(elem, event, hash) {
   // Fetches element data and a reference to the parent (for bubbling).
   // Don't want to add a data object to cache for every parent,
   // so checking hasElData first.
-  const elemData = (Dom.hasElData(elem)) ? Dom.getElData(elem) : {};
+  const elemData = (DomData.hasData(elem)) ? DomData.getData(elem) : {};
   const parent = elem.parentNode || elem.ownerDocument;
       // type = event.type || event,
       // handler;
@@ -370,7 +426,7 @@ export function trigger(elem, event, hash) {
 
   // If at the top of the DOM, triggers the default action unless disabled.
   } else if (!parent && !event.defaultPrevented) {
-    const targetData = Dom.getElData(event.target);
+    const targetData = DomData.getData(event.target);
 
     // Checks if the target has a default action for this event.
     if (event.target[event.type]) {
@@ -392,10 +448,14 @@ export function trigger(elem, event, hash) {
 /**
  * Trigger a listener only once for an event
  *
- * @param  {Element|Object}   elem Element or object to
- * @param  {String|Array}   type Name/type of event
- * @param  {Function} fn Event handler function
- * @method one
+ * @param {Element|Object} elem
+ *        Element or object to bind to.
+ *
+ * @param {string|string[]} type
+ *        Name/type of event
+ *
+ * @param {Event~EventListener} fn
+ *        Event Listener function
  */
 export function one(elem, type, fn) {
   if (Array.isArray(type)) {

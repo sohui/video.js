@@ -1,11 +1,12 @@
 import {gruntCustomizer, gruntOptionsMaker} from './options-customizer.js';
 import chg from 'chg';
-import nodeCli from 'shelljs-nodecli';
+import npmRun from 'npm-run';
+import isDocsOnly from './docs-only.js';
 
 module.exports = function(grunt) {
   require('time-grunt')(grunt);
 
-  let _ = require('lodash-compat');
+  let _ = require('lodash');
   let pkg = grunt.file.readJSON('package.json');
   let license = grunt.file.read('build/license-header.txt');
   let bannerCommonData = _.pick(pkg, ['version', 'copyright']);
@@ -32,7 +33,10 @@ module.exports = function(grunt) {
       release: {
         tag_name: 'v'+ version.full,
         name: version.full,
-        body: nodeCli.exec('conventional-changelog', '-p videojs', {silent: true}).output
+        body: npmRun.execSync('conventional-changelog -p videojs', {
+          silent: true,
+          encoding: 'utf8'
+        })
       },
     },
     files: {
@@ -102,6 +106,7 @@ module.exports = function(grunt) {
     uglify: {
       options: {
         preserveComments: 'some',
+        screwIE8: false,
         mangle: true,
         compress: {
           sequences: true,
@@ -123,9 +128,14 @@ module.exports = function(grunt) {
     },
     dist: {},
     watch: {
-      novtt: {
-        files: ['build/temp/video.js'],
-        tasks: ['concat:novtt']
+      dist: {
+        files: [
+          'build/temp/video.js',
+          'build/temp/alt/video.novtt.js',
+          'build/temp/video-js.css',
+          'build/temp/alt/video-js-cdn.css'
+        ],
+        tasks: ['copy:dist']
       },
       minify: {
         files: ['build/temp/video.js'],
@@ -135,13 +145,9 @@ module.exports = function(grunt) {
         files: ['src/css/**/*'],
         tasks: ['skin']
       },
-      babel: {
-        files: ['src/js/**/*.js'],
-        tasks: ['babel:es5']
-      },
-      jshint: {
-        files: ['src/**/*', 'test/unit/**/*.js', 'Gruntfile.js'],
-        tasks: 'jshint'
+      lang: {
+        files: ['lang/**/*.json'],
+        tasks: ['vjslanguages']
       }
     },
     connect: {
@@ -219,6 +225,7 @@ module.exports = function(grunt) {
       chrome_bs:    { browsers: ['chrome_bs'] },
       firefox_bs:   { browsers: ['firefox_bs'] },
       safari_bs:    { browsers: ['safari_bs'] },
+      edge_bs:      { browsers: ['edge_bs'] },
       ie11_bs:      { browsers: ['ie11_bs'] },
       ie10_bs:      { browsers: ['ie10_bs'] },
       ie9_bs:       { browsers: ['ie9_bs'] },
@@ -260,25 +267,25 @@ module.exports = function(grunt) {
         options: {
           release: 'major'
         },
-        src: ['package.json', 'component.json']
+        src: ['package.json']
       },
       minor: {
         options: {
           release: 'minor'
         },
-        src: ['package.json', 'component.json']
+        src: ['package.json']
       },
       patch: {
         options: {
           release: 'patch'
         },
-        src: ['package.json', 'component.json']
+        src: ['package.json']
       },
       prerelease: {
         options: {
           release: 'prerelease'
         },
-        src: ['package.json', 'component.json']
+        src: ['package.json']
       },
       css: {
         options: {
@@ -315,32 +322,39 @@ module.exports = function(grunt) {
       }
     },
     browserify: {
-      options: browserifyGruntOptions(),
       build: {
+        options: browserifyGruntOptions(),
         files: {
           'build/temp/video.js': ['es5/video.js']
         }
       },
-      dist: {
+      buildnovtt: {
+        options: browserifyGruntOptions({transform: [
+          ['aliasify', {aliases: {'videojs-vtt.js': false}}]
+        ]}),
+        files: {
+          'build/temp/alt/video.novtt.js': ['es5/video.js']
+        }
+      },
+      watch: {
         options: browserifyGruntOptions({
-          transform: [
-            ['browserify-versionify', {
-              placeholder: '../node_modules/videojs-vtt.js/dist/vtt.js',
-              version: 'https://cdn.rawgit.com/gkatsev/vtt.js/vjs-v0.12.1/dist/vtt.min.js'
-            }],
-          ]
+          watch: true,
+          keepAlive: true,
         }),
         files: {
           'build/temp/video.js': ['es5/video.js']
         }
       },
-      watch: {
-        options: {
+      watchnovtt: {
+        options: browserifyGruntOptions({
+          transform: [
+            ['aliasify', {aliases: {'videojs-vtt.js': false}}]
+          ],
           watch: true,
-          keepAlive: true
-        },
+          keepAlive: true,
+        }),
         files: {
-          'build/temp/video.js': ['es5/video.js']
+          'build/temp/alt/video.novtt.js': ['es5/video.js']
         }
       },
       tests: {
@@ -379,14 +393,6 @@ module.exports = function(grunt) {
       options: {
         separator: '\n'
       },
-      novtt: {
-        src: ['build/temp/video.js'],
-        dest: 'build/temp/alt/video.novtt.js'
-      },
-      vtt: {
-        src: ['build/temp/video.js', 'node_modules/videojs-vtt.js/dist/vtt.js'],
-        dest: 'build/temp/video.js'
-      },
       ie8_addition: {
         src: ['build/temp/video-js.css', 'src/css/ie8.css'],
         dest: 'build/temp/video-js.css'
@@ -397,14 +403,23 @@ module.exports = function(grunt) {
         logConcurrentOutput: true
       },
       tests: [
-        'watch:babel',
+        'shell:babel',
         'browserify:tests'
+      ],
+      dev: [
+        'shell:babel',
+        'shell:rollupwatch',
+        'browserify:tests',
+        'watch:skin',
+        'watch:lang',
+        'watch:dist'
       ],
       // Run multiple watch tasks in parallel
       // Needed so watchify can cache intelligently
       watchAll: [
         'watch',
         'browserify:watch',
+        'browserify:watchnovtt',
         'browserify:tests',
         'karma:watch'
       ],
@@ -432,8 +447,32 @@ module.exports = function(grunt) {
       }
     },
     shell: {
+      rollup: {
+        command: 'npm run rollup',
+        options: {
+          preferLocal: true
+        }
+      },
+      rollupall: {
+        command: 'npm run rollup -- --no-progress && npm run rollup-minify -- --no-progress',
+        options: {
+          preferLocal: true
+        }
+      },
+      rollupwatch: {
+        command: 'npm run rollup-dev',
+        optoins: {
+          preferLocal: true
+        }
+      },
+      babel: {
+        command: 'npm run babel -- --watch --quiet',
+        options: {
+          preferLocal: true
+        }
+      },
       lint: {
-        command: 'npm run lint',
+        command: 'npm run lint -- --errors',
         options: {
           preferLocal: true
         }
@@ -451,7 +490,7 @@ module.exports = function(grunt) {
         }
       },
       webpack: {
-        command: 'webpack test/require/webpack.js build/temp/webpack.js',
+        command: 'webpack --hide-modules test/require/webpack.js build/temp/webpack.js',
         options: {
           preferLocal: true
         }
@@ -466,8 +505,8 @@ module.exports = function(grunt) {
           error: true
         },
         ignore: [
-          // Ignore the warning about needing <optgroup> elements
-          'WCAG2AA.Principle1.Guideline1_3.1_3_1.H85.2'
+          // Ignore warning about contrast of the "vjs-no-js" fallback link
+          'WCAG2AA.Principle1.Guideline1_4.1_4_3.G18.BgImage'
         ]
 
       },
@@ -481,20 +520,13 @@ module.exports = function(grunt) {
   require('load-grunt-tasks')(grunt);
   grunt.loadNpmTasks('videojs-doc-generator');
   grunt.loadNpmTasks('chg');
-  grunt.loadNpmTasks('gkatsev-grunt-sass');
   grunt.loadNpmTasks('grunt-accessibility');
 
-  const buildDependents = [
+  grunt.registerTask('build', [
     'shell:lint',
     'clean:build',
 
-    'babel:es5',
-    'browserify:build',
-    'concat:novtt',
-    'concat:vtt',
-    'usebanner:novtt',
-    'usebanner:vtt',
-    'uglify',
+    'shell:rollupall',
 
     'skin',
     'version:css',
@@ -504,18 +536,11 @@ module.exports = function(grunt) {
     'copy:swf',
     'copy:ie8',
     'vjslanguages'
-  ];
-
-  grunt.registerTask('build', buildDependents);
-
-  grunt.registerTask(
-    'build:dist',
-    buildDependents.map(task => task === 'browserify:build' ? 'browserify:dist' : task)
-  );
+  ]);
 
   grunt.registerTask('dist', [
     'clean:dist',
-    'build:dist',
+    'build',
     'copy:dist',
     'copy:examples',
     'zip:dist'
@@ -527,19 +552,31 @@ module.exports = function(grunt) {
   grunt.registerTask('default', ['test']);
 
   // The test script includes coveralls only when the TRAVIS env var is set.
-  grunt.registerTask('test', [
-    'build',
-    'shell:noderequire',
-    'shell:browserify',
-    'shell:webpack',
-    'karma:defaults',
-    'test-a11y'].concat(process.env.TRAVIS && 'coveralls').filter(Boolean));
+  grunt.registerTask('test', function() {
+    const tasks = [
+      'build',
+      'shell:noderequire',
+      'shell:browserify',
+      'shell:webpack',
+      'karma:defaults',
+      'test-a11y'
+    ];
+
+    if (process.env.TRAVIS) {
+      if (isDocsOnly(process.env.TRAVIS_COMMIT, process.env.TRAVIS_COMMIT_RANGE)) {
+        grunt.log.write('Not running any tests because only docs were changed');
+        return;
+      }
+
+      tasks.concat(process.env.TRAVIS && 'coveralls').filter(Boolean);
+    }
+
+    grunt.task.run(tasks);
+  });
 
   // Run while developing
-  grunt.registerTask('dev', ['build', 'connect:dev', 'concurrent:watchSandbox']);
-
+  grunt.registerTask('dev', ['sandbox', 'connect:dev', 'concurrent:dev']);
   grunt.registerTask('watchAll', ['build', 'connect:dev', 'concurrent:watchAll']);
-
   grunt.registerTask('test-a11y', ['copy:a11y', 'accessibility']);
 
   // Pick your testing, or run both in different terminals

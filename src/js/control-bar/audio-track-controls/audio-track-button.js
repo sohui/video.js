@@ -6,44 +6,55 @@ import Component from '../../component.js';
 import AudioTrackMenuItem from './audio-track-menu-item.js';
 
 /**
- * The base class for buttons that toggle specific text track types (e.g. subtitles)
+ * The base class for buttons that toggle specific {@link AudioTrack} types.
  *
- * @param {Player|Object} player
- * @param {Object=} options
  * @extends TrackButton
- * @class AudioTrackButton
  */
 class AudioTrackButton extends TrackButton {
+
+  /**
+   * Creates an instance of this class.
+   *
+   * @param {Player} player
+   *        The `Player` that this class should be attached to.
+   *
+   * @param {Object} [options={}]
+   *        The key/value store of player options.
+   */
   constructor(player, options = {}) {
-    options.tracks = player.audioTracks && player.audioTracks();
+    options.tracks = player.audioTracks();
 
     super(player, options);
-
-    this.el_.setAttribute('aria-label', 'Audio Menu');
   }
 
   /**
-   * Allow sub components to stack CSS class names
+   * Builds the default DOM `className`.
    *
-   * @return {String} The constructed class name
-   * @method buildCSSClass
+   * @return {string}
+   *         The DOM `className` for this object.
    */
   buildCSSClass() {
     return `vjs-audio-button ${super.buildCSSClass()}`;
   }
 
+  buildWrapperCSSClass() {
+    return `vjs-audio-button ${super.buildWrapperCSSClass()}`;
+  }
+
   /**
    * Create a menu item for each audio track
    *
-   * @return {Array} Array of menu items
-   * @method createItems
+   * @param {AudioTrackMenuItem[]} [items=[]]
+   *        An array of existing menu items to use.
+   *
+   * @return {AudioTrackMenuItem[]}
+   *         An array of menu items
    */
   createItems(items = []) {
-    const tracks = this.player_.audioTracks && this.player_.audioTracks();
+    // if there's only one audio track, there no point in showing it
+    this.hideThreshold_ = 1;
 
-    if (!tracks) {
-      return items;
-    }
+    const tracks = this.player_.audioTracks();
 
     for (let i = 0; i < tracks.length; i++) {
       const track = tracks[i];
@@ -58,6 +69,13 @@ class AudioTrackButton extends TrackButton {
     return items;
   }
 }
+
+/**
+ * The text that should display over the `AudioTrackButton`s controls. Added for localization.
+ *
+ * @type {string}
+ * @private
+ */
 AudioTrackButton.prototype.controlText_ = 'Audio Track';
 Component.registerComponent('AudioTrackButton', AudioTrackButton);
 export default AudioTrackButton;

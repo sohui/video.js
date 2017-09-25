@@ -21,7 +21,11 @@ const TestHelpers = {
     playerOptions = playerOptions || {};
     playerOptions.techOrder = playerOptions.techOrder || ['techFaker'];
 
-    return new Player(videoTag, playerOptions);
+    const player = new Player(videoTag, playerOptions);
+
+    player.middleware_ = [player.tech_];
+
+    return player;
   },
 
   getComputedStyle(el, rule) {
@@ -108,7 +112,7 @@ const TestHelpers = {
         const msg = `el should have the "${c}" class in its ` +
                     `className, which is "${el.className}"`;
 
-        assert.ok(Dom.hasElClass(el, c), msg);
+        assert.ok(Dom.hasClass(el, c), msg);
       });
 
       props.forEach(p => {
@@ -130,6 +134,32 @@ const TestHelpers = {
       props.length;
 
     return run;
+  },
+
+  /**
+   * Triggers an event on a DOM node natively.
+   *
+   * @param  {Element} element
+   * @param  {string} eventType
+   */
+  triggerDomEvent(element, eventType) {
+    let event;
+
+    if (document.createEvent) {
+      event = document.createEvent('HTMLEvents');
+      event.initEvent(eventType, true, true);
+    } else {
+      event = document.createEventObject();
+      event.eventType = eventType;
+    }
+
+    event.eventName = eventType;
+
+    if (document.createEvent) {
+      element.dispatchEvent(event);
+    } else {
+      element.fireEvent('on' + event.eventType, event);
+    }
   }
 };
 

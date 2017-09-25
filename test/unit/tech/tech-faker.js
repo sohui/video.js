@@ -9,7 +9,9 @@ class TechFaker extends Tech {
 
   constructor(options, handleReady) {
     super(options, handleReady);
-    this.triggerReady();
+    if (!options || options.autoReady !== false) {
+      this.triggerReady();
+    }
   }
 
   createEl() {
@@ -30,6 +32,10 @@ class TechFaker extends Tech {
 
   setControls(val) {}
 
+  setVolume(newVolume) {}
+
+  setMuted() {}
+
   currentTime() {
     return 0;
   }
@@ -37,6 +43,9 @@ class TechFaker extends Tech {
     return false;
   }
   src() {
+    return 'movie.mp4';
+  }
+  currentSrc() {
     return 'movie.mp4';
   }
   volume() {

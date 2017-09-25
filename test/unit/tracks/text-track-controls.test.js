@@ -25,7 +25,7 @@ QUnit.test('should be displayed when text tracks list is not empty', function(as
 
   this.clock.tick(1000);
 
-  assert.ok(!player.controlBar.captionsButton.hasClass('vjs-hidden'),
+  assert.ok(!player.controlBar.subsCapsButton.hasClass('vjs-hidden'),
            'control is displayed');
   assert.equal(player.textTracks().length, 1, 'textTracks contains one item');
 
@@ -35,9 +35,9 @@ QUnit.test('should be displayed when text tracks list is not empty', function(as
 QUnit.test('should be displayed when a text track is added to an empty track list', function(assert) {
   const player = TestHelpers.makePlayer();
 
-  player.addRemoteTextTrack(track);
+  player.addRemoteTextTrack(track, true);
 
-  assert.ok(!player.controlBar.captionsButton.hasClass('vjs-hidden'),
+  assert.ok(!player.controlBar.subsCapsButton.hasClass('vjs-hidden'),
            'control is displayed');
   assert.equal(player.textTracks().length, 1, 'textTracks contains one item');
 
@@ -47,7 +47,7 @@ QUnit.test('should be displayed when a text track is added to an empty track lis
 QUnit.test('should not be displayed when text tracks list is empty', function(assert) {
   const player = TestHelpers.makePlayer();
 
-  assert.ok(player.controlBar.captionsButton.hasClass('vjs-hidden'),
+  assert.ok(player.controlBar.subsCapsButton.hasClass('vjs-hidden'),
            'control is not displayed');
   assert.equal(player.textTracks().length, 0, 'textTracks is empty');
 
@@ -61,7 +61,7 @@ QUnit.test('should not be displayed when last text track is removed', function(a
 
   player.removeRemoteTextTrack(player.textTracks()[0]);
 
-  assert.ok(player.controlBar.captionsButton.hasClass('vjs-hidden'),
+  assert.ok(player.controlBar.subsCapsButton.hasClass('vjs-hidden'),
            'control is not displayed');
   assert.equal(player.textTracks().length, 0, 'textTracks is empty');
 
@@ -70,14 +70,38 @@ QUnit.test('should not be displayed when last text track is removed', function(a
 
 QUnit.test('menu should contain "Settings", "Off" and one track', function(assert) {
   const player = TestHelpers.makePlayer({
+    language: 'en',
     tracks: [track]
   });
 
   this.clock.tick(1000);
 
-  const menuItems = player.controlBar.captionsButton.items;
+  const menuItems = player.controlBar.subsCapsButton.items;
 
   assert.equal(menuItems.length, 3, 'menu contains three items');
+  assert.equal(menuItems[0].track.label,
+              'captions settings',
+              'menu contains "captions settings"');
+  assert.equal(menuItems[1].track.label, 'captions off', 'menu contains "captions off"');
+  assert.equal(menuItems[2].track.label, 'test', 'menu contains "test" track');
+
+  player.dispose();
+});
+
+QUnit.test('menu should contain "Settings", "Off", one captions and one subtitles track', function(assert) {
+  const player = TestHelpers.makePlayer({
+    language: 'en',
+    tracks: [track, {
+      kind: 'subtitles',
+      label: 'test subs'
+    }]
+  });
+
+  this.clock.tick(1000);
+
+  const menuItems = player.controlBar.subsCapsButton.items;
+
+  assert.equal(menuItems.length, 4, 'menu contains three items');
   assert.equal(menuItems[0].track.label,
               'captions settings',
               'menu contains "captions settings"');
@@ -94,9 +118,9 @@ QUnit.test('menu should update with addRemoteTextTrack', function(assert) {
 
   this.clock.tick(1000);
 
-  player.addRemoteTextTrack(track);
+  player.addRemoteTextTrack(track, true);
 
-  assert.equal(player.controlBar.captionsButton.items.length,
+  assert.equal(player.controlBar.subsCapsButton.items.length,
               4,
               'menu does contain added track');
   assert.equal(player.textTracks().length, 2, 'textTracks contains two items');
@@ -113,7 +137,7 @@ QUnit.test('menu should update with removeRemoteTextTrack', function(assert) {
 
   player.removeRemoteTextTrack(player.textTracks()[0]);
 
-  assert.equal(player.controlBar.captionsButton.items.length,
+  assert.equal(player.controlBar.subsCapsButton.items.length,
               3,
               'menu does not contain removed track');
   assert.equal(player.textTracks().length, 1, 'textTracks contains one item');
@@ -143,7 +167,7 @@ QUnit.test('descriptions should be displayed when text tracks list is not empty'
 QUnit.test('descriptions should be displayed when a text track is added to an empty track list', function(assert) {
   const player = TestHelpers.makePlayer();
 
-  player.addRemoteTextTrack(descriptionstrack);
+  player.addRemoteTextTrack(descriptionstrack, true);
 
   assert.ok(!player.controlBar.descriptionsButton.hasClass('vjs-hidden'),
            'control is displayed');
@@ -203,13 +227,13 @@ QUnit.test('enabling a captions track should disable the descriptions menu butto
 
   this.clock.tick(1000);
 
-  assert.ok(!player.controlBar.captionsButton.hasClass('vjs-hidden'),
+  assert.ok(!player.controlBar.subsCapsButton.hasClass('vjs-hidden'),
            'captions control is displayed');
   assert.ok(!player.controlBar.descriptionsButton.hasClass('vjs-hidden'),
            'descriptions control is displayed');
   assert.equal(player.textTracks().length, 2, 'textTracks contains two items');
 
-  assert.ok(!player.controlBar.captionsButton.hasClass('vjs-disabled'),
+  assert.ok(!player.controlBar.subsCapsButton.hasClass('vjs-disabled'),
            'captions control is NOT disabled');
   assert.ok(!player.controlBar.descriptionsButton.hasClass('vjs-disabled'),
            'descriptions control is NOT disabled');
@@ -225,7 +249,7 @@ QUnit.test('enabling a captions track should disable the descriptions menu butto
 
   this.clock.tick(1000);
 
-  assert.ok(!player.controlBar.captionsButton.hasClass('vjs-disabled'),
+  assert.ok(!player.controlBar.subsCapsButton.hasClass('vjs-disabled'),
            'captions control is NOT disabled');
   assert.ok(!player.controlBar.descriptionsButton.hasClass('vjs-disabled'),
            'descriptions control is NOT disabled');
@@ -241,7 +265,7 @@ QUnit.test('enabling a captions track should disable the descriptions menu butto
 
   this.clock.tick(1000);
 
-  assert.ok(!player.controlBar.captionsButton.hasClass('vjs-disabled'),
+  assert.ok(!player.controlBar.subsCapsButton.hasClass('vjs-disabled'),
            'captions control is NOT disabled');
   assert.ok(player.controlBar.descriptionsButton.hasClass('vjs-disabled'),
            'descriptions control IS disabled');
@@ -257,7 +281,7 @@ QUnit.test('enabling a captions track should disable the descriptions menu butto
 
   this.clock.tick(1000);
 
-  assert.ok(!player.controlBar.captionsButton.hasClass('vjs-disabled'),
+  assert.ok(!player.controlBar.subsCapsButton.hasClass('vjs-disabled'),
            'captions control is NOT disabled');
   assert.ok(!player.controlBar.descriptionsButton.hasClass('vjs-disabled'),
            'descriptions control is NOT disabled');
@@ -294,3 +318,163 @@ if (!browser.IS_IE8) {
     player.dispose();
   });
 }
+
+const chaptersTrack = {
+  kind: 'chapters',
+  label: 'Test Chapters'
+};
+
+test('chapters should not be displayed when text tracks list is empty', function() {
+  const player = TestHelpers.makePlayer();
+
+  ok(player.controlBar.chaptersButton.hasClass('vjs-hidden'), 'control is not displayed');
+  equal(player.textTracks().length, 0, 'textTracks is empty');
+
+  player.dispose();
+});
+
+test('chapters should not be displayed when there is chapters track but no cues', function() {
+  const player = TestHelpers.makePlayer({
+    tracks: [chaptersTrack]
+  });
+
+  this.clock.tick(1000);
+
+  ok(player.controlBar.chaptersButton.hasClass('vjs-hidden'), 'chapters menu is not displayed');
+  equal(player.textTracks().length, 1, 'textTracks contains one item');
+
+  player.dispose();
+});
+
+test('chapters should be displayed when cues added to initial track and button updated', function() {
+  const player = TestHelpers.makePlayer({
+    tracks: [chaptersTrack]
+  });
+
+  this.clock.tick(1000);
+
+  const chapters = player.textTracks()[0];
+
+  chapters.addCue({
+    startTime: 0,
+    endTime: 2,
+    text: 'Chapter 1'
+  });
+  chapters.addCue({
+    startTime: 2,
+    endTime: 4,
+    text: 'Chapter 2'
+  });
+  equal(chapters.cues.length, 2);
+
+  player.controlBar.chaptersButton.update();
+
+  ok(!player.controlBar.chaptersButton.hasClass('vjs-hidden'), 'chapters menu is displayed');
+
+  const menuItems = player.controlBar.chaptersButton.items;
+
+  equal(menuItems.length, 2, 'menu contains two item');
+
+  player.dispose();
+});
+
+test('chapters should be displayed when a track and its cures added and button updated', function() {
+  const player = TestHelpers.makePlayer();
+
+  this.clock.tick(1000);
+
+  const chapters = player.addTextTrack('chapters', 'Test Chapters', 'en');
+
+  chapters.addCue({
+    startTime: 0,
+    endTime: 2,
+    text: 'Chapter 1'
+  });
+  chapters.addCue({
+    startTime: 2,
+    endTime: 4,
+    text: 'Chapter 2'
+  });
+  equal(chapters.cues.length, 2);
+
+  player.controlBar.chaptersButton.update();
+
+  ok(!player.controlBar.chaptersButton.hasClass('vjs-hidden'), 'chapters menu is displayed');
+
+  const menuItems = player.controlBar.chaptersButton.items;
+
+  equal(menuItems.length, 2, 'menu contains two item');
+
+  player.dispose();
+});
+
+test('chapters menu should use track label as menu title', function() {
+  const player = TestHelpers.makePlayer({
+    tracks: [chaptersTrack]
+  });
+
+  this.clock.tick(1000);
+
+  const chapters = player.textTracks()[0];
+
+  chapters.addCue({
+    startTime: 0,
+    endTime: 2,
+    text: 'Chapter 1'
+  });
+  chapters.addCue({
+    startTime: 2,
+    endTime: 4,
+    text: 'Chapter 2'
+  });
+  equal(chapters.cues.length, 2);
+
+  player.controlBar.chaptersButton.update();
+
+  const menu = player.controlBar.chaptersButton.menu;
+  const titleEl = menu.contentEl().firstChild;
+  const menuTitle = titleEl.textContent || titleEl.innerText;
+
+  equal(menuTitle, 'Test Chapters', 'menu gets track label as title');
+
+  player.dispose();
+});
+
+test('chapters should be displayed when remote track added and load event fired', function() {
+  const player = TestHelpers.makePlayer();
+
+  this.clock.tick(1000);
+
+  const chaptersEl = player.addRemoteTextTrack(chaptersTrack, true);
+
+  chaptersEl.track.addCue({
+    startTime: 0,
+    endTime: 2,
+    text: 'Chapter 1'
+  });
+  chaptersEl.track.addCue({
+    startTime: 2,
+    endTime: 4,
+    text: 'Chapter 2'
+  });
+
+  equal(chaptersEl.track.cues.length, 2);
+
+  // Anywhere where we support using native text tracks, we can trigger a custom DOM event.
+  // On IE8 and other places where we have emulated tracks, either we cannot trigger custom
+  // DOM events (like IE8 with the custom DOM element) or we aren't using a DOM element at all.
+  // In those cases just trigger `load` directly on the chaptersEl object.
+  if (player.tech_.featuresNativeTextTracks) {
+    TestHelpers.triggerDomEvent(chaptersEl, 'load');
+  } else {
+    chaptersEl.trigger('load');
+  }
+
+  ok(!player.controlBar.chaptersButton.hasClass('vjs-hidden'), 'chapters menu is displayed');
+
+  const menuItems = player.controlBar.chaptersButton.items;
+
+  equal(menuItems.length, 2, 'menu contains two item');
+
+  player.dispose();
+});

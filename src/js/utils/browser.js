@@ -1,7 +1,8 @@
 /**
  * @file browser.js
+ * @module browser
  */
-import document from 'global/document';
+import * as Dom from './dom';
 import window from 'global/window';
 
 const USER_AGENT = window.navigator && window.navigator.userAgent || '';
@@ -61,10 +62,35 @@ export const IS_NATIVE_ANDROID = IS_ANDROID && ANDROID_VERSION < 5 && appleWebki
 export const IS_FIREFOX = (/Firefox/i).test(USER_AGENT);
 export const IS_EDGE = (/Edge/i).test(USER_AGENT);
 export const IS_CHROME = !IS_EDGE && (/Chrome/i).test(USER_AGENT);
-export const IS_IE8 = (/MSIE\s8\.0/).test(USER_AGENT);
-export const IE_VERSION = (function(result) {
-  return result && parseFloat(result[1]);
-}((/MSIE\s(\d+)\.\d/).exec(USER_AGENT)));
+export const CHROME_VERSION = (function() {
+  const match = USER_AGENT.match(/Chrome\/(\d+)/);
 
-export const TOUCH_ENABLED = !!(('ontouchstart' in window) || window.DocumentTouch && document instanceof window.DocumentTouch);
-export const BACKGROUND_SIZE_SUPPORTED = 'backgroundSize' in document.createElement('video').style;
+  if (match && match[1]) {
+    return parseFloat(match[1]);
+  }
+  return null;
+}());
+export const IS_IE8 = (/MSIE\s8\.0/).test(USER_AGENT);
+export const IE_VERSION = (function() {
+  const result = (/MSIE\s(\d+)\.\d/).exec(USER_AGENT);
+  let version = result && parseFloat(result[1]);
+
+  if (!version && (/Trident\/7.0/i).test(USER_AGENT) && (/rv:11.0/).test(USER_AGENT)) {
+    // IE 11 has a different user agent string than other IE versions
+    version = 11.0;
+  }
+
+  return version;
+}());
+
+export const IS_SAFARI = (/Safari/i).test(USER_AGENT) && !IS_CHROME && !IS_ANDROID && !IS_EDGE;
+export const IS_ANY_SAFARI = IS_SAFARI || IS_IOS;
+
+export const TOUCH_ENABLED = Dom.isReal() && (
+  'ontouchstart' in window ||
+  window.DocumentTouch &&
+  window.document instanceof window.DocumentTouch);
+
+export const BACKGROUND_SIZE_SUPPORTED = (
+  Dom.isReal() &&
+  'backgroundSize' in window.document.createElement('video').style);

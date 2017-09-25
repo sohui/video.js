@@ -50,6 +50,19 @@ QUnit.module('HTML5', {
   }
 });
 
+QUnit.test('should be able to set playsinline attribute', function(assert) {
+  assert.expect(2);
+
+  tech.createEl();
+  tech.setPlaysinline(true);
+
+  assert.ok(tech.el().hasAttribute('playsinline'), 'playsinline attribute was added');
+
+  tech.setPlaysinline(false);
+
+  assert.ok(!tech.el().hasAttribute('playsinline'), 'playsinline attribute was removed');
+});
+
 QUnit.test('should detect whether the volume can be changed', function(assert) {
 
   if (!{}.__defineSetter__) {
@@ -71,17 +84,84 @@ QUnit.test('should detect whether the volume can be changed', function(assert) {
 QUnit.test('test playbackRate', function(assert) {
   // Android 2.3 always returns 0 for playback rate
   if (!Html5.canControlPlaybackRate()) {
-    assert.ok('Playback rate is not supported');
+    assert.ok(true, 'Playback rate is not supported');
     return;
   }
 
   tech.createEl();
 
   tech.el().playbackRate = 1.25;
-  assert.strictEqual(tech.playbackRate(), 1.25);
+  assert.strictEqual(tech.playbackRate(), 1.25, 'can be changed from the element');
 
   tech.setPlaybackRate(0.75);
-  assert.strictEqual(tech.playbackRate(), 0.75);
+  assert.strictEqual(tech.playbackRate(), 0.75, 'can be changed from the API');
+});
+
+QUnit.test('test defaultPlaybackRate', function(assert) {
+  // Android 2.3 always returns 0 for playback rate
+  if (!Html5.canControlPlaybackRate()) {
+    assert.ok(true, 'Playback rate is not supported');
+    return;
+  }
+
+  tech.createEl();
+
+  tech.el().defaultPlaybackRate = 1.25;
+  assert.strictEqual(tech.defaultPlaybackRate(), 1.25, 'can be changed from the element');
+
+  tech.setDefaultPlaybackRate(0.75);
+  assert.strictEqual(tech.defaultPlaybackRate(), 0.75, 'can be changed from the API');
+});
+
+QUnit.test('blacklist playbackRate support on older verisons of Chrome on Android', function(assert) {
+  if (!Html5.canControlPlaybackRate()) {
+    assert.ok(true, 'playbackRate is not supported');
+    return;
+  }
+
+  // Reset playbackrate - Firefox's rounding of playbackRate causes the rate not to change in canControlPlaybackRate() after a few instances
+  Html5.TEST_VID.playbackRate = 1;
+
+  const oldIsAndroid = browser.IS_ANDROID;
+  const oldIsChrome = browser.IS_CHROME;
+  const oldChromeVersion = browser.CHROME_VERSION;
+
+  browser.IS_ANDROID = true;
+  browser.IS_CHROME = true;
+  browser.CHROME_VERSION = 50;
+  assert.strictEqual(Html5.canControlPlaybackRate(), false, 'canControlPlaybackRate should return false on older Chrome');
+
+  browser.CHROME_VERSION = 58;
+  assert.strictEqual(Html5.canControlPlaybackRate(), true, 'canControlPlaybackRate should return true on newer Chrome');
+
+  browser.IS_ANDROID = oldIsAndroid;
+  browser.IS_CHROME = oldIsChrome;
+  browser.CHROME_VERSION = oldChromeVersion;
+});
+
+QUnit.test('test volume', function(assert) {
+  if (!Html5.canControlVolume()) {
+    assert.ok(true, 'Volume is not supported');
+    return;
+  }
+
+  tech.createEl();
+
+  tech.el().volume = 0.5;
+  assert.strictEqual(tech.volume(), 0.5, 'can be changed from the element');
+
+  tech.setVolume(1);
+  assert.strictEqual(tech.volume(), 1, 'can be changed from the API');
+});
+
+QUnit.test('test defaultMuted', function(assert) {
+  tech.createEl();
+
+  tech.el().defaultMuted = true;
+  assert.strictEqual(tech.defaultMuted(), true, 'can be changed from the element');
+
+  tech.setDefaultMuted(false);
+  assert.strictEqual(tech.defaultMuted(), false, 'can be changed from the API');
 });
 
 QUnit.test('should export played', function(assert) {
@@ -301,6 +381,30 @@ if (Html5.supportsNativeTextTracks()) {
     assert.equal(adds[2][0], 'removetrack', 'removetrack event handler added');
   });
 
+  QUnit.test('does not add native textTrack listeners when disabled', function(assert) {
+    const events = [];
+    const tt = {
+      length: 0,
+      addEventListener: (type, fn) => events.push([type, fn]),
+      removeEventListener: (type, fn) => events.push([type, fn])
+    };
+    const el = document.createElement('div');
+
+    el.textTracks = tt;
+
+    /* eslint-disable no-unused-vars */
+    const htmlTech = new Html5({el, nativeTextTracks: false});
+    /* eslint-enable no-unused-vars */
+
+    assert.equal(events.length, 0, 'no listeners added');
+
+    /* eslint-disable no-unused-vars */
+    const htmlTechAlternate = new Html5({el, nativeCaptions: false});
+    /* eslint-enable no-unused-vars */
+
+    assert.equal(events.length, 0, 'no listeners added');
+  });
+
   QUnit.test('remove all tracks from emulated list on dispose', function(assert) {
     const adds = [];
     const rems = [];
@@ -351,6 +455,24 @@ if (Html5.supportsNativeAudioTracks()) {
     assert.equal(adds[2][0], 'removetrack', 'removetrack event handler added');
   });
 
+  QUnit.test('does not add native audioTrack listeners when disabled', function(assert) {
+    const events = [];
+    const at = {
+      length: 0,
+      addEventListener: (type, fn) => events.push([type, fn]),
+      removeEventListener: (type, fn) => events.push([type, fn])
+    };
+    const el = document.createElement('div');
+
+    el.audioTracks = at;
+
+    /* eslint-disable no-unused-vars */
+    const htmlTech = new Html5({el, nativeAudioTracks: false});
+    /* eslint-enable no-unused-vars */
+
+    assert.equal(events.length, 0, 'no listeners added');
+  });
+
   QUnit.test('remove all tracks from emulated list on dispose', function(assert) {
     const adds = [];
     const rems = [];
@@ -399,6 +521,24 @@ if (Html5.supportsNativeVideoTracks()) {
     assert.equal(adds[0][0], 'change', 'change event handler added');
     assert.equal(adds[1][0], 'addtrack', 'addtrack event handler added');
     assert.equal(adds[2][0], 'removetrack', 'removetrack event handler added');
+  });
+
+  QUnit.test('does not add native audioTrack listeners when disabled', function(assert) {
+    const events = [];
+    const vt = {
+      length: 0,
+      addEventListener: (type, fn) => events.push([type, fn]),
+      removeEventListener: (type, fn) => events.push([type, fn])
+    };
+    const el = document.createElement('div');
+
+    el.videoTracks = vt;
+
+    /* eslint-disable no-unused-vars */
+    const htmlTech = new Html5({el, nativeVideoTracks: false});
+    /* eslint-enable no-unused-vars */
+
+    assert.equal(events.length, 0, 'no listeners added');
   });
 
   QUnit.test('remove all tracks from emulated list on dispose', function(assert) {
@@ -546,19 +686,101 @@ QUnit.test('Html5#reset calls Html5.resetMediaElement when called', function(ass
   Html5.resetMediaElement = oldResetMedia;
 });
 
-QUnit.test('Exception in play promise should be caught', function() {
+test('When Android Chrome reports Infinity duration with currentTime 0, return NaN', function() {
+  const oldIsAndroid = browser.IS_ANDROID;
+  const oldIsChrome = browser.IS_CHROME;
   const oldEl = tech.el_;
 
+  browser.IS_ANDROID = true;
+  browser.IS_CHROME = true;
+
   tech.el_ = {
-    play: () => {
-      return new Promise(function(resolve, reject) {
-        reject(new DOMException());
-      });
-    }
+    duration: Infinity,
+    currentTime: 0
+  };
+  ok(Number.isNaN(tech.duration()), 'returned NaN with currentTime 0');
+
+  browser.IS_ANDROID = oldIsAndroid;
+  browser.IS_CHROME = oldIsChrome;
+  tech.el_ = oldEl;
+});
+
+QUnit.test('supports getting available media playback quality metrics', function(assert) {
+  const origPerformance = window.performance;
+  const origDate = window.Date;
+  const oldEl = tech.el_;
+  const videoPlaybackQuality = {
+    creationTime: 1,
+    corruptedVideoFrames: 2,
+    droppedVideoFrames: 3,
+    totalVideoFrames: 5
   };
 
-  tech.play();
-  QUnit.ok(true, 'error was caught');
+  tech.el_ = {
+    getVideoPlaybackQuality: () => videoPlaybackQuality
+  };
+  assert.deepEqual(tech.getVideoPlaybackQuality(),
+                   videoPlaybackQuality,
+                   'uses native implementation when supported');
+
+  tech.el_ = {
+    webkitDroppedFrameCount: 1,
+    webkitDecodedFrameCount: 2
+  };
+  window.performance = {
+    now: () => 4
+  };
+  assert.deepEqual(tech.getVideoPlaybackQuality(),
+                   { droppedVideoFrames: 1, totalVideoFrames: 2, creationTime: 4 },
+                   'uses webkit prefixed metrics and performance.now when supported');
+
+  tech.el_ = {
+    webkitDroppedFrameCount: 1,
+    webkitDecodedFrameCount: 2
+  };
+  window.Date = {
+    now: () => 10
+  };
+  window.performance = {
+    timing: {
+      navigationStart: 3
+    }
+  };
+  assert.deepEqual(tech.getVideoPlaybackQuality(),
+                   { droppedVideoFrames: 1, totalVideoFrames: 2, creationTime: 7 },
+                   'uses webkit prefixed metrics and Date.now() - navigationStart when ' +
+                   'supported');
+
+  tech.el_ = {};
+  window.performance = void 0;
+  assert.deepEqual(tech.getVideoPlaybackQuality(), {}, 'empty object when not supported');
+
+  window.performance = {
+    now: () => 5
+  };
+  assert.deepEqual(tech.getVideoPlaybackQuality(),
+                   { creationTime: 5 },
+                   'only creation time when it\'s the only piece available');
+
+  window.performance = {
+    timing: {
+      navigationStart: 3
+    }
+  };
+  assert.deepEqual(tech.getVideoPlaybackQuality(),
+                   { creationTime: 7 },
+                   'only creation time when it\'s the only piece available');
+
+  tech.el_ = {
+    getVideoPlaybackQuality: () => videoPlaybackQuality,
+    webkitDroppedFrameCount: 1,
+    webkitDecodedFrameCount: 2
+  };
+  assert.deepEqual(tech.getVideoPlaybackQuality(),
+                   videoPlaybackQuality,
+                   'prefers native implementation when supported');
 
   tech.el_ = oldEl;
+  window.performance = origPerformance;
+  window.Date = origDate;
 });
